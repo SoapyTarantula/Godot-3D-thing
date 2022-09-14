@@ -5,6 +5,7 @@ signal shoot_attempt # Custom signal declaration
 export(float) var move_speed = 30.0
 export(float) var jump_strength = 2.0
 export(float) var mouseSens = 15.0
+export(bool) var canDash = false
 
 # Godot claims to use meters per second when in 3D so we hope real gravity works for it
 var gravity = 9.81 
@@ -20,6 +21,10 @@ var localDir = Vector3()
 
 # Find the camera
 onready var camera = get_node("Camera")
+
+# What even are finite state machines
+var dashingState
+var jumpingState
 
 # Lock the mouse to the center of the screen and make it invisible
 func _ready():
@@ -45,25 +50,38 @@ func _physics_process(delta):
 	var forwardDir = global_transform.basis.z
 	var sidewaysDir = global_transform.basis.x
 	
-	localDir = (forwardDir * playerVelocity.z + sidewaysDir * playerVelocity.x + Vector3.UP * playerVelocity.y)
+	if dashingState:
+		localDir = ((forwardDir * playerVelocity.z + sidewaysDir * playerVelocity.x + Vector3.UP * playerVelocity.y).normalized() * 5)
+	else:
+		localDir = (forwardDir * playerVelocity.z + sidewaysDir * playerVelocity.x + Vector3.UP * playerVelocity.y).normalized()
 
+	if jumpingState:
+		playerVelocity.y = jump_strength * 100 * delta
+	else:
+		pass
 # Makes sure we stop falling when we hit the ground, so we don't
 # zip right through it eventually
 	if is_on_floor() and playerVelocity.y < 0:
 		playerVelocity.y = 0
-	
+
 # Gets player inputs for things like movement, shooting, and jumping
-func PlayerInputs(delta):
+func PlayerInputs(_delta):
 	playerVelocity.x = Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left")
 	playerVelocity.z = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
 
 	if Input.is_action_just_pressed("fire"):
 		emit_signal("shoot_attempt")
+	
+	if Input.is_action_just_pressed("leftShift") and canDash:
+		dashingState = true
+	else:
+		dashingState = false
 
 	if Input.is_action_just_pressed("jump") and is_on_floor():
-		playerVelocity.y = jump_strength * 100 * delta
-		
-	
+		jumpingState = true
+	else:
+		jumpingState = false
+
 # For some reason I was unable to ever figure out changes in mouse position
 # without having to separate it from the rest of the controls, so I decided
 # to just get it from a specific input event
